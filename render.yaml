@@ -12,9 +12,9 @@ services:
   # 1. FastAPI Backend API
   - type: web
     name: revenueai-api
-    env: python
+    runtime: python
     region: oregon
-    plan: free
+    plan: starter
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: python run.py
@@ -54,8 +54,7 @@ services:
   # 2. React / Vite Frontend
   - type: web
     name: revenueai-web
-    env: static
-    plan: free
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
