@@ -55,6 +55,8 @@ def universal_search(
     cases = db.query(RecoveryCase).join(Customer).join(Payment).filter(
         or_(
             RecoveryCase.id.ilike(search_pattern),
+            RecoveryCase.payment_id.ilike(search_pattern),
+            RecoveryCase.customer_id.ilike(search_pattern),
             RecoveryCase.status.ilike(search_pattern),
             Payment.failure_reason.ilike(search_pattern),
             Payment.payment_method.ilike(search_pattern),

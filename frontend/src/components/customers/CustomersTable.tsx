@@ -144,23 +144,37 @@ export const CustomersTable: React.FC = () => {
 
                       {/* Orders */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="font-semibold text-[#0F172A]">{c.payments_count || 0} total</span>
-                          <span className="text-[#8C98A4]">·</span>
-                          <span className="text-[#059669] font-semibold">{c.recovered_count || 0} recovered</span>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className="font-semibold text-[#0F172A]">{c.payments_count || 0} orders</span>
+                          <span className="text-[#94A3B8]">·</span>
+                          <span className="text-[#059669] font-medium">{c.recovered_count || 0} rec</span>
+                          {Boolean(c.failed_count && c.failed_count > 0) && (
+                            <>
+                              <span className="text-[#94A3B8]">·</span>
+                              <span className="text-[#E11D48] font-medium">{c.failed_count} fail</span>
+                            </>
+                          )}
                         </div>
                       </td>
 
                       {/* Consent */}
                       <td className="py-3.5 px-4">
                         <Badge variant={c.consent_status ? 'success' : 'danger'} dot>
-                          {c.consent_status ? 'Opt-In' : 'Revoked'}
+                          {c.consent_status ? 'Active Consent' : 'Revoked'}
                         </Badge>
                       </td>
 
                       {/* Risk */}
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-xs text-[#0F172A]">
-                        {(c.risk_score || 0.1).toFixed(2)}
+                      <td className="py-3.5 px-4 text-right">
+                        <span className={`inline-flex items-center gap-1 font-mono font-bold text-xs px-2 py-0.5 rounded-lg border ${
+                          (c.risk_score || 0) < 0.35 
+                            ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0]' 
+                            : (c.risk_score || 0) < 0.70 
+                            ? 'bg-[#FFFBEB] text-[#D97706] border-[#FDE68A]' 
+                            : 'bg-[#FFF1F2] text-[#E11D48] border-[#FECDD3]'
+                        }`}>
+                          {((c.risk_score || 0.1) * 100).toFixed(0)}%
+                        </span>
                       </td>
                     </tr>
                   );

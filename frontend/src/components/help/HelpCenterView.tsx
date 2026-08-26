@@ -11,7 +11,13 @@ import {
   ChevronUp, 
   Sparkles,
   BookOpen,
-  ArrowRight
+  ArrowRight,
+  Activity,
+  Sliders,
+  Lock,
+  Zap,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { Card } from '../common/Card';
 
@@ -32,34 +38,70 @@ export const HelpCenterView: React.FC = () => {
       answer: (
         <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
           <p>
-            When a payment fails, RevenueAI initiates a 5-stage evaluation loop:
+            When a payment fails, RevenueAI initiates an 8-stage autonomous intelligence pipeline:
           </p>
           <ol className="list-decimal pl-4 space-y-1 text-[#334155]">
-            <li><strong>Context Collection:</strong> Ingests customer LTV, past payment success rates, subscription tier, and communication consent.</li>
-            <li><strong>Strategy Formulation:</strong> The LLM (Groq <code>openai/gpt-oss-120b</code>) analyzes failure telemetry and recommends an optimal action (<code>RETRY</code>, <code>SEND_PAYMENT_LINK</code>, <code>WAIT</code>, etc.).</li>
-            <li><strong>Guardrail Verification:</strong> The proposed action must strictly pass all 6 deterministic safety checks.</li>
-            <li><strong>Provider Dispatch:</strong> Executes the action via payment provider abstraction.</li>
-            <li><strong>Audit Logging:</strong> Appends the full event and metadata to the tamper-evident ledger.</li>
+            <li><strong>Context Gathering:</strong> Collects customer LTV, past payment success rates, subscription tier, and communication consent.</li>
+            <li><strong>Transaction Risk Assessment:</strong> Evaluates payment method reliability, historical failure patterns, and decline reason codes.</li>
+            <li><strong>Recovery Pressure & Fatigue:</strong> Computes contact frequency, retry counts, and customer irritability signals to avoid spamming.</li>
+            <li><strong>Strategy Simulation:</strong> Evaluates candidate actions (Retry, Payment Link, Reminder, Wait, Escalate) with suitability scoring.</li>
+            <li><strong>AI LLM Reasoning:</strong> Groq LLM (<code>openai/gpt-oss-120b</code>) generates reasoned recommendation with confidence and priority.</li>
+            <li><strong>Deterministic Guardrails:</strong> Evaluates 6+ zero-trust safety checks (consent, retry cap, idempotency, amount lock).</li>
+            <li><strong>Provider Execution:</strong> Dispatches action through isolated payment provider (mock/sandbox).</li>
+            <li><strong>Audit Logging:</strong> Seals every stage and JSON payload into an immutable audit trail.</li>
           </ol>
         </div>
       )
     },
     {
       category: 'Safety & Guardrails',
-      question: 'What are the 6 Deterministic Guardrails enforced before any action?',
+      question: 'What is the difference between BLOCKED and ESCALATED guardrail outcomes?',
       answer: (
         <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
           <p>
-            The Guardrail Engine operates as a zero-trust barrier independent of the AI model:
+            The Guardrail Engine enforces deterministic rules with distinct outcomes:
+          </p>
+          <ul className="list-disc pl-4 space-y-1.5">
+            <li>
+              <strong className="text-[#E11D48]">BLOCKED:</strong> The automated action is strictly rejected because it violates a hard safety policy (e.g., customer consent revoked, duplicate charge detected, invalid invoice amount). No outreach or payment retry occurs.
+            </li>
+            <li>
+              <strong className="text-[#D97706]">ESCALATED:</strong> The case exceeds automated safe operating parameters (e.g., max 3 retries reached, critical transaction risk, VIP enterprise account) and is systematically routed to human customer success / retention operations.
+            </li>
+          </ul>
+        </div>
+      )
+    },
+    {
+      category: 'Recovery Fatigue',
+      question: 'How is Customer Recovery Fatigue and Pressure calculated?',
+      answer: (
+        <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
+          <p>
+            The Recovery Pressure Engine scores customer fatigue (0-100) based on observable signals:
           </p>
           <ul className="list-disc pl-4 space-y-1">
-            <li><strong>1. Customer Consent:</strong> Blocks outreach if <code>consent_status == False</code>.</li>
-            <li><strong>2. Retry Velocity Cap:</strong> Enforces $\le 3$ retries and a 4-hour delay between automated attempts.</li>
-            <li><strong>3. Idempotency Check:</strong> Halts actions if payment is already recovered or in flight.</li>
-            <li><strong>4. Amount Integrity:</strong> Ensures invoice total cannot be modified down to the paisa.</li>
-            <li><strong>5. Zero Hallucinated Discounts:</strong> Rejects unauthorized promo codes or deductions.</li>
-            <li><strong>6. Real-Money Isolation:</strong> Restricts all prototype/sandbox execution to test mode endpoints.</li>
+            <li><strong>Attempt Velocity:</strong> How many automated retries or messages have occurred in the last 24-72 hours.</li>
+            <li><strong>Interval Spacing:</strong> Exponential backoff delay between attempts (enforcing minimum rest periods).</li>
+            <li><strong>Customer Sensitivity:</strong> Historical responsiveness and consent status.</li>
           </ul>
+          <p className="pt-1 text-[#334155]">
+            Fatigue tiers: <span className="font-semibold text-[#059669]">LOW (0-30)</span>, <span className="font-semibold text-[#3B82F6]">MODERATE (31-60)</span>, <span className="font-semibold text-[#D97706]">HIGH (61-85)</span>, and <span className="font-semibold text-[#E11D48]">CRITICAL (86-100)</span>. When CRITICAL, automated messaging is blocked.
+          </p>
+        </div>
+      )
+    },
+    {
+      category: 'Strategy Simulator',
+      question: 'What is the Strategy Simulator and does it move money directly?',
+      answer: (
+        <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
+          <p>
+            The Strategy Simulator provides <strong>decision support</strong> by calculating contextual suitability scores (0-100) for all candidate actions before execution.
+          </p>
+          <p>
+            Simulation is non-destructive: it evaluates risk factors, decline codes, and customer context to recommend the highest-yield path. Funds are only moved when an action is executed through the payment provider layer.
+          </p>
         </div>
       )
     },
@@ -73,7 +115,7 @@ export const HelpCenterView: React.FC = () => {
           </p>
           <ul className="list-disc pl-4 space-y-1">
             <li>Click the <strong>`+`</strong> button in the top navigation bar to generate a realistic failed payment across various gateway decline codes.</li>
-            <li>Click <strong>`Run AI Agent`</strong> on the case to observe the autonomous recommendation and guardrail validation.</li>
+            <li>Click <strong>`Run Autonomous Agent`</strong> on the case to observe the autonomous recommendation and guardrail validation.</li>
             <li>Click <strong>`Simulate Settlement`</strong> in the case modal to emulate customer payment fulfillment and see live revenue metrics increment.</li>
           </ul>
         </div>
@@ -85,7 +127,7 @@ export const HelpCenterView: React.FC = () => {
       answer: (
         <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
           <p>
-            In accordance with enterprise fintech standards, all sensitive credentials (such as Groq LLM API keys and database connection strings) are stored purely in server-side environment variables (<code>.env</code>) and are never exposed or rendered in the frontend.
+            In accordance with enterprise fintech standards, all sensitive credentials (such as Groq LLM API keys, JWT signing keys, and database connection strings) are stored purely in server-side environment variables and are never exposed or rendered in the frontend.
           </p>
         </div>
       )
@@ -96,7 +138,7 @@ export const HelpCenterView: React.FC = () => {
       answer: (
         <div className="space-y-2 text-xs text-[#475569] leading-relaxed">
           <p>
-            Navigate to the <strong>Audit Trail</strong> tab from the sidebar. Every system decision, state transition, guardrail evaluation, and mock webhook response is logged chronologically with timestamps and expandible JSON metadata payloads.
+            Navigate to the <strong>Audit Trail</strong> tab from the sidebar. Every system decision, state transition, guardrail evaluation, and mock webhook response is logged chronologically with timestamps and expandable JSON metadata payloads.
           </p>
         </div>
       )
@@ -138,15 +180,15 @@ export const HelpCenterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Topic Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Quick Architecture Highlights (3 cards) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 rounded-3xl bg-white border border-[#ECEEF2] space-y-2 hover:border-[#CBD5E1] transition-colors">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-[#6366F1]">
             <Bot className="h-4 w-4" />
           </div>
-          <h4 className="text-xs font-bold text-[#0F172A]">AI Decision Engine</h4>
+          <h4 className="text-xs font-bold text-[#0F172A]">8-Stage AI Decision Pipeline</h4>
           <p className="text-[11px] text-[#64748B]">
-            Groq LLM model inference and intelligent recovery action selection.
+            Groq LLM (<code>openai/gpt-oss-120b</code>) with automated heuristic fallback for uninterrupted recovery.
           </p>
         </div>
 
@@ -154,9 +196,9 @@ export const HelpCenterView: React.FC = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ECFDF5] text-[#059669]">
             <ShieldCheck className="h-4 w-4" />
           </div>
-          <h4 className="text-xs font-bold text-[#0F172A]">Deterministic Safety</h4>
+          <h4 className="text-xs font-bold text-[#0F172A]">Zero-Trust Deterministic Safety</h4>
           <p className="text-[11px] text-[#64748B]">
-            6 pre-execution safety policies protecting customers and funds.
+            6+ pre-execution safety policies protecting customer trust, amount integrity, and compliance.
           </p>
         </div>
 
@@ -164,12 +206,64 @@ export const HelpCenterView: React.FC = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FAF5FF] text-[#7C3AED]">
             <History className="h-4 w-4" />
           </div>
-          <h4 className="text-xs font-bold text-[#0F172A]">Audit & Compliance</h4>
+          <h4 className="text-xs font-bold text-[#0F172A]">Cryptographic Audit Trail</h4>
           <p className="text-[11px] text-[#64748B]">
-            Cryptographic ledger capturing every automated event.
+            Tamper-evident ledger capturing every decision, state transition, and provider webhook event.
           </p>
         </div>
       </div>
+
+      {/* Architecture Deep Dive */}
+      <Card className="p-6 sm:p-8 bg-white border-[#ECEEF2] space-y-6">
+        <div>
+          <h3 className="text-sm font-extrabold text-[#0F172A]">RevenueAI Architecture & Workflow Guide</h3>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            Key concepts and governance pillars powering intelligent dunning and automated revenue recovery.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#ECEEF2] space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0F172A]">
+              <Activity className="h-4 w-4 text-[#6366F1]" />
+              <span>Recovery Fatigue & Pressure Engine</span>
+            </div>
+            <p className="text-[11px] text-[#64748B] leading-relaxed">
+              Dynamically calculates customer sensitivity based on outreach attempts, interval spacing, and historical churn risk. Prevents relationship degradation by throttling notifications.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#ECEEF2] space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0F172A]">
+              <Sliders className="h-4 w-4 text-[#7C3AED]" />
+              <span>Strategy Simulation & Suitability</span>
+            </div>
+            <p className="text-[11px] text-[#64748B] leading-relaxed">
+              Evaluates all candidate actions (Retry, Send Link, Reminder, Wait, Escalate) against transaction risk and reason codes to determine the optimal recovery path.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#ECEEF2] space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0F172A]">
+              <Lock className="h-4 w-4 text-[#059669]" />
+              <span>Deterministic Guardrail Barrier</span>
+            </div>
+            <p className="text-[11px] text-[#64748B] leading-relaxed">
+              Zero-trust validation layer that overrides AI proposals if consent is missing, max retries are exceeded, or invoice amounts are altered.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#ECEEF2] space-y-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0F172A]">
+              <Zap className="h-4 w-4 text-[#D97706]" />
+              <span>Isolated Execution Layer</span>
+            </div>
+            <p className="text-[11px] text-[#64748B] leading-relaxed">
+              Safe execution environment operating under <code>PAYMENT_PROVIDER=mock</code> and <code>ALLOW_REAL_MONEY_MOVEMENT=false</code> to ensure risk-free demonstrations.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* FAQ Accordion List */}
       <Card className="p-6 sm:p-8 bg-white border-[#ECEEF2] space-y-4">

@@ -358,6 +358,73 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                 </div>
               ) : null}
 
+              {/* TOP RECOVERY AMOUNT HERO BANNER (HIGHEST PRIORITY) */}
+              <div className="rounded-3xl border border-[#ECEEF2] bg-gradient-to-r from-[#F8FAFC] via-white to-[#F5F3FF] p-6 shadow-xs relative overflow-hidden">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                      <RotateCcw className="h-3.5 w-3.5 text-[#6366F1]" />
+                      <span>Recoverable Payment Amount</span>
+                    </div>
+                    <div className="text-3xl sm:text-4xl font-black text-[#0F172A] tracking-tight flex items-baseline gap-2 font-sans">
+                      <span>{formatCurrency(caseDetail.revenue_at_risk || caseDetail.payment?.amount || 0)}</span>
+                      <span className="text-xs font-semibold text-[#64748B] font-mono">INR</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#64748B] pt-0.5">
+                      <span>Invoice / Plan: <strong className="text-[#0F172A]">{caseDetail.subscription?.billing_cycle ? `${caseDetail.subscription.billing_cycle.toUpperCase()} Plan` : 'Standard Invoice'}</strong></span>
+                      <span>·</span>
+                      <span>Customer: <strong className="text-[#0F172A]">{caseDetail.customer?.name || 'Customer'}</strong></span>
+                      <span>·</span>
+                      <span>Method: <strong className="text-[#0F172A] uppercase">{caseDetail.payment?.payment_method || 'CARD'}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Right quick badges / actions */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-2xs space-y-0.5 min-w-[130px]">
+                      <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Failure Reason</div>
+                      <div className="text-xs font-bold text-[#E11D48] truncate max-w-[180px]" title={caseDetail.payment?.failure_reason || caseDetail.failure_reason || 'Decline'}>
+                        {caseDetail.payment?.failure_reason || caseDetail.failure_reason || 'Gateway Decline'}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-2xs space-y-0.5 min-w-[110px]">
+                      <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Priority</div>
+                      <div className="text-xs font-bold text-[#0F172A] uppercase flex items-center gap-1.5">
+                        <span className={`h-2 w-2 rounded-full ${caseDetail.priority === 'critical' ? 'bg-[#E11D48]' : caseDetail.priority === 'high' ? 'bg-[#D97706]' : 'bg-[#6366F1]'}`}></span>
+                        <span>{caseDetail.priority || 'MEDIUM'}</span>
+                      </div>
+                    </div>
+
+                    {caseDetail.status !== 'recovered' && (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={handleRunAgent}
+                        loading={runningAgent}
+                        icon={<Bot className="h-4 w-4" />}
+                        className="rounded-2xl px-5 font-bold shadow-md shadow-indigo-500/20"
+                      >
+                        {runningAgent ? 'Running AI Agent...' : 'Run Autonomous Agent'}
+                      </Button>
+                    )}
+
+                    {caseDetail.status !== 'recovered' && (
+                      <Button
+                        variant="outline"
+                        size="md"
+                        onClick={handleSimulateCustomerRecovery}
+                        loading={simulatingSettlement}
+                        icon={<Sparkles className="h-4 w-4 text-[#059669]" />}
+                        className="rounded-2xl px-4 font-bold border-[#A7F3D0] text-[#059669] hover:bg-[#ECFDF5]"
+                      >
+                        {simulatingSettlement ? 'Simulating...' : 'Simulate Settlement'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* 4 CORE DECISION CARDS GRID */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 
