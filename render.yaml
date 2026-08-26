@@ -55,7 +55,6 @@ services:
   - type: web
     name: revenueai-web
     env: static
-    region: oregon
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
