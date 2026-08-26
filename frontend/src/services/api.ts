@@ -22,11 +22,30 @@ import {
 } from '../types';
 
 function resolveApiBase(): string {
-  const envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-  if (!envUrl) {
+  let envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  
+  // If empty or default fallback, check if we can safely infer cloud backend
+  if (!envUrl || envUrl === '/api' || envUrl === '') {
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname;
+      if (hostname.includes('revenueai-web.onrender.com')) {
+        return 'https://revenueai-api.onrender.com/api';
+      }
+      if (hostname.endsWith('.onrender.com') && hostname.includes('-web.')) {
+        return `https://${hostname.replace('-web.', '-api.')}/api`;
+      }
+    }
     return '/api';
   }
-  const cleanUrl = envUrl.replace(/\/+$/, '');
+
+  let cleanUrl = envUrl.replace(/\/+$/, '');
+
+  // Prepend protocol if host was provided without scheme (e.g. from Render host reference)
+  if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://') && !cleanUrl.startsWith('/')) {
+    const isLocal = cleanUrl.startsWith('localhost') || cleanUrl.startsWith('127.0.0.1');
+    cleanUrl = `${isLocal ? 'http://' : 'https://'}${cleanUrl}`;
+  }
+
   if (cleanUrl === '/api' || cleanUrl.endsWith('/api')) {
     return cleanUrl;
   }
@@ -74,14 +93,37 @@ export const authStorage = {
 };
 
 async function handleResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  let data: any = null;
+
+  if (text && text.trim().length > 0) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+
   if (!res.ok) {
     if (res.status === 401) {
       authStorage.clear();
     }
-    const errData = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(errData.detail || `Request failed with status ${res.status}`);
+    const detail =
+      data?.detail ||
+      (text && text.length < 200 && !text.trim().startsWith('<') ? text : null) ||
+      res.statusText ||
+      `Request failed with status ${res.status}`;
+    throw new Error(detail);
   }
-  return res.json();
+
+  if (data === null) {
+    if (res.status === 204 || res.headers.get('content-length') === '0' || !text.trim()) {
+      return {} as T;
+    }
+    throw new Error(`API server returned non-JSON response (status ${res.status})`);
+  }
+
+  return data as T;
 }
 
 function getHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
