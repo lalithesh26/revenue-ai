@@ -12,74 +12,114 @@ from app.models.recovery_case import RecoveryCase
 from app.models.recovery_action import RecoveryAction
 from app.models.audit_log import AuditLog
 from app.schemas.demo import SeedRequest, SeedResponse, SimulateFailureRequest, SimulateRecoveryRequest
-from app.seed import seed_synthetic_data, FAILURE_CATEGORIES, PAYMENT_METHODS
+from app.seed import seed_synthetic_data, generate_realistic_amount, FAILURE_CATEGORIES, PAYMENT_METHODS
 from app.engine.orchestrator import orchestrator
 
 router = APIRouter(prefix="/demo", tags=["Demo & Simulation"])
 
+# 5 Core Controlled AI Demo Scenarios (Input Conditions Only - AI reasons independently)
+PRIMARY_DEMO_SCENARIOS = [
+    {
+        "id": "demo_payment_link",
+        "title": "Payment Link Demo",
+        "icon": "🔗",
+        "category": "Customer Action Required",
+        "band": "Band A (₹500–₹4,999)",
+        "amount": 2499.0,
+        "failure_reason": "Card expired / validity date mismatch",
+        "description": "Card expired on recurring subscription. Customer consent is active, low risk, low pressure. Customer action needed to update payment method."
+    },
+    {
+        "id": "demo_retry",
+        "title": "Retry Demo",
+        "icon": "🔄",
+        "category": "Transient Gateway Issue",
+        "band": "Band B (₹5,000–₹9,999)",
+        "amount": 6999.0,
+        "failure_reason": "Issuing bank processing timeout during 3DS verification",
+        "description": "Transient bank gateway timeout on healthy subscription. Consent active, low risk, low pressure, 0 prior retries. Safe for automated retry."
+    },
+    {
+        "id": "demo_reminder_wait",
+        "title": "Reminder / Wait Demo",
+        "icon": "⏳",
+        "category": "High-Value Liquidity Pacing",
+        "band": "Band C (₹10,000–₹14,999)",
+        "amount": 12500.0,
+        "failure_reason": "Declined due to temporary insufficient balance",
+        "description": "High-value subscriber (LTV ₹45,000+, 100% historical success) with temporary balance issue. Contextual reasoning determines optimal pacing."
+    },
+    {
+        "id": "demo_escalate",
+        "title": "Escalate Demo",
+        "icon": "👤",
+        "category": "Security & Risk Protection",
+        "band": "Band D (₹15,000–₹49,999)",
+        "amount": 32000.0,
+        "failure_reason": "Security 3DS authentication repeated failure / anomaly flagged",
+        "description": "High-value transaction with repeated authentication drop-offs and elevated risk indicators. Requires human retention specialist review."
+    },
+    {
+        "id": "demo_guardrail_block",
+        "title": "Guardrail Block Demo",
+        "icon": "🛑",
+        "category": "Deterministic Safety Gate",
+        "band": "Band A (₹500–₹4,999)",
+        "amount": 3500.0,
+        "failure_reason": "Card expired on un-consented subscriber",
+        "description": "Subscriber has revoked communication consent (consent_status=false). Deterministic Guardrail #1 strictly blocks any outbound recovery outreach."
+    }
+]
+
+# Combined catalog preserving backward compatibility
 PREDEFINED_SCENARIOS = [
+    *PRIMARY_DEMO_SCENARIOS,
     {
         "id": "scenario_low_pressure_low_risk",
         "title": "Low Pressure + Low Risk (Transient Network Timeout)",
         "category": "Happy Path",
-        "expected_action": "retry",
-        "expected_guardrail": "PASSED",
-        "description": "Standard recurring subscription failure due to transient network timeout. Consent is active, 0 prior attempts, low transaction risk. Agent recommends smart retry and succeeds."
+        "description": "Standard recurring subscription failure due to transient network timeout. Consent is active, 0 prior attempts, low transaction risk."
     },
     {
         "id": "scenario_high_pressure_low_risk",
         "title": "High Pressure + Low Risk (Contextual Warning Check)",
         "category": "Contextual Safety",
-        "expected_action": "retry",
-        "expected_guardrail": "PASSED (Warning)",
-        "description": "Customer has received several recent recovery communications (Pressure score ~65/100). Failure is temporary timeout. Guardrail Policy 7 emits contextual warning but does NOT block retry."
+        "description": "Customer has received several recent recovery communications (Pressure score ~65/100). Guardrail emits contextual warning."
     },
     {
         "id": "scenario_low_pressure_high_risk",
         "title": "Low Pressure + High Risk (Security Decline Flag)",
         "category": "Risk Protection",
-        "expected_action": "escalate",
-        "expected_guardrail": "PASSED",
-        "description": "Transaction flagged with security/fraud keywords and high-value deviation. Agent recognizes elevated risk and recommends human escalation."
+        "description": "Transaction flagged with security/fraud keywords and high-value deviation."
     },
     {
         "id": "scenario_high_pressure_high_risk",
         "title": "High Pressure + High Risk (Critical Escalation)",
         "category": "Risk Protection",
-        "expected_action": "escalate",
-        "expected_guardrail": "PASSED",
-        "description": "Multiple past declines coupled with high transaction risk and elevated pressure. Agent and Guardrails route case to senior retention operations."
+        "description": "Multiple past declines coupled with high transaction risk and elevated pressure."
     },
     {
         "id": "scenario_revoked_consent",
         "title": "Consent Revoked (Policy 1 Hard Block)",
         "category": "Deterministic Safety",
-        "expected_action": "stop",
-        "expected_guardrail": "BLOCKED (Policy 1)",
-        "description": "Customer explicitly revoked communication consent. Outbound communications and retries are hard-blocked by Policy 1."
+        "description": "Customer explicitly revoked communication consent. Outbound communications are hard-blocked by Policy 1."
     },
     {
         "id": "scenario_retry_limit_reached",
         "title": "Max Retries Reached (Policy 2 Hard Block)",
         "category": "Deterministic Safety",
-        "expected_action": "escalate",
-        "expected_guardrail": "BLOCKED (Policy 2)",
         "description": "Case already reached maximum allowable retries (3/3). Automated retries are hard-blocked by Policy 2."
     },
     {
         "id": "scenario_already_recovered",
         "title": "Already Recovered (Policy 3 Idempotency Block)",
         "category": "Deterministic Safety",
-        "expected_action": "none",
-        "expected_guardrail": "BLOCKED (Policy 3)",
         "description": "Payment was already settled previously. Re-execution is hard-blocked by Policy 3 to prevent double debits."
     },
     {
         "id": "scenario_amount_tampering",
         "title": "Amount Tampering / Mismatch (Policy 4 Hard Block)",
         "category": "Deterministic Safety",
-        "expected_action": "none",
-        "expected_guardrail": "BLOCKED (Policy 4)",
         "description": "Requested recovery amount differs from original invoice amount. Execution is hard-blocked by Policy 4."
     }
 ]
@@ -87,40 +127,54 @@ PREDEFINED_SCENARIOS = [
 
 @router.get("/scenarios")
 def get_demo_scenarios() -> List[Dict[str, Any]]:
-    """Returns the catalog of 8 predefined architecture test scenarios."""
+    """Returns the catalog of controlled AI demo scenarios."""
     return PREDEFINED_SCENARIOS
 
 
 @router.post("/simulate-scenario/{scenario_id}")
 def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Creates and sets up the precise test state for any of the 8 predefined scenarios,
-    allowing instant one-click validation of the AI Agent and Guardrail pipeline.
+    Creates and sets up the precise controlled input state for any demo scenario.
+    The AI independently reasons over the input conditions without any pre-set answer.
     """
     now = datetime.now(timezone.utc)
     
-    # 1. Low Pressure + Low Risk
-    if scenario_id == "scenario_low_pressure_low_risk":
+    # ── DEMO 1: Payment Link (Card expired, ₹2,499 in Band A) ──
+    if scenario_id in ("demo_payment_link", "scenario_expired_card"):
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
-            name="Aarav Sharma",
-            email="aarav.sharma@example.com",
-            phone="+919876543210",
+            name="Ananya Sharma",
+            email="ananya.sharma@example.com",
+            phone="+919876543220",
             consent_status=True,
-            risk_score=0.08
+            risk_score=0.10
         )
         db.add(cust)
         db.flush()
 
+        # Seed 2 past successful payments for context
+        for p_amt in [2499.0, 2499.0]:
+            p_past = Payment(
+                id=f"pay_demo_{uuid.uuid4().hex[:8]}",
+                customer_id=cust.id,
+                amount=p_amt,
+                currency="INR",
+                status="succeeded",
+                payment_method="credit_card",
+                created_at=now - timedelta(days=60),
+                updated_at=now - timedelta(days=60)
+            )
+            db.add(p_past)
+
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=4999.0,
+            amount=2499.0,
             currency="INR",
             status="failed",
-            failure_code="ERR_BANK_TIMEOUT",
-            failure_reason="Issuing bank timed out during processing",
-            payment_method="card",
+            failure_code="ERR_CARD_EXPIRED",
+            failure_reason="Card expired or validity date mismatch.",
+            payment_method="credit_card",
             created_at=now,
             updated_at=now
         )
@@ -142,7 +196,7 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
 
         return {
             "scenario_id": scenario_id,
-            "title": "Low Pressure + Low Risk (Transient Network Timeout)",
+            "title": "Payment Link Demo",
             "recovery_case_id": case.id,
             "customer_id": cust.id,
             "payment_id": pay.id,
@@ -151,27 +205,41 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             "recommended_next_step": "Run AI Recovery Agent on this case"
         }
 
-    # 2. High Pressure + Low Risk (Non-blocking contextual safety)
-    elif scenario_id == "scenario_high_pressure_low_risk":
+    # ── DEMO 2: Retry (Bank timeout, ₹6,999 in Band B) ──
+    elif scenario_id in ("demo_retry", "scenario_low_pressure_low_risk"):
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
-            name="Priya Patel",
-            email="priya.patel@example.com",
-            phone="+919876543211",
+            name="Aarav Verma",
+            email="aarav.verma@example.com",
+            phone="+919876543210",
             consent_status=True,
-            risk_score=0.12
+            risk_score=0.08
         )
         db.add(cust)
         db.flush()
 
+        # Past payments
+        for p_amt in [6999.0, 6999.0]:
+            p_past = Payment(
+                id=f"pay_demo_{uuid.uuid4().hex[:8]}",
+                customer_id=cust.id,
+                amount=p_amt,
+                currency="INR",
+                status="succeeded",
+                payment_method="upi",
+                created_at=now - timedelta(days=45),
+                updated_at=now - timedelta(days=45)
+            )
+            db.add(p_past)
+
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=3499.0,
+            amount=6999.0,
             currency="INR",
             status="failed",
-            failure_code="ERR_NETWORK_DROP",
-            failure_reason="Gateway connection dropped temporarily",
+            failure_code="ERR_BANK_TIMEOUT",
+            failure_reason="Issuing bank processing timeout during 3DS verification.",
             payment_method="upi",
             created_at=now,
             updated_at=now
@@ -184,62 +252,61 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             payment_id=pay.id,
             customer_id=cust.id,
             revenue_at_risk=pay.amount,
-            status="in_recovery",
-            detected_at=now - timedelta(hours=36),
-            priority="high",
-            retry_count=1
+            status="open",
+            detected_at=now,
+            priority="medium",
+            retry_count=0
         )
         db.add(case)
-        db.flush()
-
-        # Add 3 recent outreach actions to create high recovery pressure
-        for i, act_type in enumerate(["send_reminder", "send_payment_link", "send_reminder"]):
-            act = RecoveryAction(
-                recovery_case_id=case.id,
-                action_type=act_type,
-                status="completed",
-                result="Communication dispatched",
-                amount_recovered=0.0,
-                executed_at=now - timedelta(hours=24 - (i * 6))
-            )
-            db.add(act)
-
         db.commit()
 
         return {
             "scenario_id": scenario_id,
-            "title": "High Pressure + Low Risk (Contextual Warning Check)",
+            "title": "Retry Demo",
             "recovery_case_id": case.id,
             "customer_id": cust.id,
             "payment_id": pay.id,
             "amount": pay.amount,
             "failure_reason": pay.failure_reason,
-            "note": "Case has 3 recent communications. Guardrails will verify Policy 7 warning without blocking retry.",
             "recommended_next_step": "Run AI Recovery Agent on this case"
         }
 
-    # 3. Low Pressure + High Risk (Security flag)
-    elif scenario_id == "scenario_low_pressure_high_risk":
+    # ── DEMO 3: Reminder / Wait (Insufficient balance, high LTV, ₹12,500 in Band C) ──
+    elif scenario_id in ("demo_reminder_wait", "scenario_high_pressure_low_risk"):
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
-            name="Vikram Malhotra",
-            email="vikram.malhotra@example.com",
-            phone="+919876543212",
+            name="Rohan Mehta",
+            email="rohan.mehta@example.com",
+            phone="+919876543211",
             consent_status=True,
-            risk_score=0.82
+            risk_score=0.12
         )
         db.add(cust)
         db.flush()
 
+        # High LTV customer history (4 successful past payments)
+        for p_amt in [12500.0, 12500.0, 12500.0, 12500.0]:
+            p_past = Payment(
+                id=f"pay_demo_{uuid.uuid4().hex[:8]}",
+                customer_id=cust.id,
+                amount=p_amt,
+                currency="INR",
+                status="succeeded",
+                payment_method="netbanking",
+                created_at=now - timedelta(days=90),
+                updated_at=now - timedelta(days=90)
+            )
+            db.add(p_past)
+
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=48000.0,
+            amount=12500.0,
             currency="INR",
             status="failed",
-            failure_code="ERR_FRAUD_FLAGGED",
-            failure_reason="Suspicious high velocity activity flagged by issuer security filter",
-            payment_method="card",
+            failure_code="ERR_INSUFFICIENT_FUNDS",
+            failure_reason="Declined due to temporary insufficient account balance.",
+            payment_method="netbanking",
             created_at=now,
             updated_at=now
         )
@@ -253,7 +320,7 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             revenue_at_risk=pay.amount,
             status="open",
             detected_at=now,
-            priority="critical",
+            priority="high",
             retry_count=0
         )
         db.add(case)
@@ -261,24 +328,24 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
 
         return {
             "scenario_id": scenario_id,
-            "title": "Low Pressure + High Risk (Security Decline Flag)",
+            "title": "Reminder / Wait Demo",
             "recovery_case_id": case.id,
             "customer_id": cust.id,
             "payment_id": pay.id,
             "amount": pay.amount,
             "failure_reason": pay.failure_reason,
-            "recommended_next_step": "Run AI Recovery Agent to observe Escalate recommendation"
+            "recommended_next_step": "Run AI Recovery Agent on this case"
         }
 
-    # 4. High Pressure + High Risk
-    elif scenario_id == "scenario_high_pressure_high_risk":
+    # ── DEMO 4: Escalate (Auth/Fraud flag, ₹32,000 in Band D) ──
+    elif scenario_id in ("demo_escalate", "scenario_low_pressure_high_risk", "scenario_high_pressure_high_risk"):
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
-            name="Rohan Mehra",
-            email="rohan.mehra@example.com",
-            phone="+919876543213",
+            name="Vikram Malhotra",
+            email="vikram.malhotra@example.com",
+            phone="+919876543212",
             consent_status=True,
-            risk_score=0.78
+            risk_score=0.85
         )
         db.add(cust)
         db.flush()
@@ -290,8 +357,8 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             currency="INR",
             status="failed",
             failure_code="ERR_AUTH_FAILED",
-            failure_reason="Security verification 3DS authentication repeated failure",
-            payment_method="card",
+            failure_reason="Security 3DS authentication repeated failure / anomaly flagged.",
+            payment_method="credit_card",
             created_at=now,
             updated_at=now
         )
@@ -303,46 +370,34 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             payment_id=pay.id,
             customer_id=cust.id,
             revenue_at_risk=pay.amount,
-            status="in_recovery",
-            detected_at=now - timedelta(days=2),
+            status="open",
+            detected_at=now,
             priority="critical",
-            retry_count=2
+            retry_count=1
         )
         db.add(case)
-        db.flush()
-
-        for act_type in ["send_payment_link", "send_reminder"]:
-            act = RecoveryAction(
-                recovery_case_id=case.id,
-                action_type=act_type,
-                status="completed",
-                result="Dispatched",
-                amount_recovered=0.0
-            )
-            db.add(act)
-
         db.commit()
 
         return {
             "scenario_id": scenario_id,
-            "title": "High Pressure + High Risk (Critical Escalation)",
+            "title": "Escalate Demo",
             "recovery_case_id": case.id,
             "customer_id": cust.id,
             "payment_id": pay.id,
             "amount": pay.amount,
             "failure_reason": pay.failure_reason,
-            "recommended_next_step": "Run AI Recovery Agent to trigger human escalation"
+            "recommended_next_step": "Run AI Recovery Agent on this case"
         }
 
-    # 5. Revoked Consent (Policy 1 Hard Block)
-    elif scenario_id == "scenario_revoked_consent":
+    # ── DEMO 5: Guardrail Block (Revoked Consent, ₹3,500 in Band A) ──
+    elif scenario_id in ("demo_guardrail_block", "scenario_revoked_consent"):
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
-            name="Ananya Roy",
-            email="ananya.roy@example.com",
+            name="Priya Nair",
+            email="priya.nair@example.com",
             phone="+919876543214",
-            consent_status=False,  # Explicitly revoked
-            risk_score=0.10
+            consent_status=False,  # Explicitly revoked consent
+            risk_score=0.15
         )
         db.add(cust)
         db.flush()
@@ -350,12 +405,12 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=7500.0,
+            amount=3500.0,
             currency="INR",
             status="failed",
             failure_code="ERR_CARD_EXPIRED",
-            failure_reason="Card validity expired",
-            payment_method="card",
+            failure_reason="Card expired on un-consented subscriber.",
+            payment_method="credit_card",
             created_at=now,
             updated_at=now
         )
@@ -377,17 +432,17 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
 
         return {
             "scenario_id": scenario_id,
-            "title": "Consent Revoked (Policy 1 Hard Block)",
+            "title": "Guardrail Block Demo",
             "recovery_case_id": case.id,
             "customer_id": cust.id,
             "payment_id": pay.id,
             "amount": pay.amount,
             "failure_reason": pay.failure_reason,
-            "note": "Customer consent_status is False. Guardrail Policy 1 will block any outreach.",
-            "recommended_next_step": "Execute action to observe Guardrail Policy 1 hard block"
+            "note": "Subscriber consent_status is False. Guardrail Policy 1 will deterministically block execution.",
+            "recommended_next_step": "Run AI Recovery Agent to observe Guardrail Policy 1 hard block"
         }
 
-    # 6. Retry Limit Reached (Policy 2 Hard Block)
+    # ── Legacy Scenarios for Backward Compatibility ──
     elif scenario_id == "scenario_retry_limit_reached":
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
@@ -403,7 +458,7 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=5200.0,
+            amount=5499.0,
             currency="INR",
             status="failed",
             failure_code="ERR_INSUFFICIENT_FUNDS",
@@ -423,7 +478,7 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             status="in_recovery",
             detected_at=now - timedelta(days=3),
             priority="medium",
-            retry_count=3  # Max retries reached
+            retry_count=3
         )
         db.add(case)
         db.commit()
@@ -436,11 +491,9 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             "payment_id": pay.id,
             "amount": pay.amount,
             "retry_count": 3,
-            "note": "Retry count is 3/3. Policy 2 will hard-block further automated retries.",
             "recommended_next_step": "Attempt retry to observe Policy 2 hard block"
         }
 
-    # 7. Already Recovered Case (Policy 3 Idempotency)
     elif scenario_id == "scenario_already_recovered":
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
@@ -456,7 +509,7 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=9999.0,
+            amount=8999.0,
             currency="INR",
             status="recovered",
             payment_method="upi",
@@ -487,11 +540,9 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             "customer_id": cust.id,
             "payment_id": pay.id,
             "status": "recovered",
-            "note": "Case is already recovered. Guardrail Policy 3 blocks double execution.",
             "recommended_next_step": "Attempt action to verify idempotency gate"
         }
 
-    # 8. Amount Tampering / Mismatch (Policy 4)
     elif scenario_id == "scenario_amount_tampering":
         cust = Customer(
             id=f"cust_demo_{uuid.uuid4().hex[:8]}",
@@ -507,12 +558,12 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
         pay = Payment(
             id=f"pay_demo_{uuid.uuid4().hex[:8]}",
             customer_id=cust.id,
-            amount=15000.0,
+            amount=14500.0,
             currency="INR",
             status="failed",
             failure_code="ERR_CARD_DECLINED",
             failure_reason="Card declined by issuer",
-            payment_method="card",
+            payment_method="credit_card",
             created_at=now,
             updated_at=now
         )
@@ -539,7 +590,6 @@ def simulate_predefined_scenario(scenario_id: str, db: Session = Depends(get_db)
             "customer_id": cust.id,
             "payment_id": pay.id,
             "original_amount": pay.amount,
-            "note": "Payment amount is ₹15,000. Any mismatched debit request will be blocked by Policy 4.",
             "recommended_next_step": "Test GuardrailEngine with altered requested amount"
         }
 
@@ -568,7 +618,7 @@ def seed_demo_data(payload: SeedRequest, db: Session = Depends(get_db)):
 
 @router.post("/simulate-failure")
 def simulate_new_failed_payment(payload: Optional[SimulateFailureRequest] = None, db: Session = Depends(get_db)):
-    """Simulates a real-time incoming failed payment and spins up a new RecoveryCase."""
+    """Simulates a real-time incoming failed payment across realistic fintech bands."""
     customer = None
     if payload and payload.customer_id:
         customer = db.query(Customer).filter(Customer.id == payload.customer_id).first()
@@ -578,7 +628,7 @@ def simulate_new_failed_payment(payload: Optional[SimulateFailureRequest] = None
             raise HTTPException(status_code=400, detail="No customers found in database. Please seed demo data first.")
         customer = random.choice(customers)
 
-    amount = payload.amount if (payload and payload.amount) else random.choice([2499.0, 4999.0, 8999.0, 14500.0, 22000.0])
+    amount = payload.amount if (payload and payload.amount) else generate_realistic_amount()
     payment_method = payload.payment_method if (payload and payload.payment_method) else random.choice(PAYMENT_METHODS)
     
     if payload and payload.failure_reason:

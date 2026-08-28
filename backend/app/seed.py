@@ -36,17 +36,35 @@ LAST_NAMES = [
 ]
 
 COMPANIES_OR_PLANS = [
-    ("Fintech Pro Subscription", 4999.0, "monthly"),
+    ("Fintech Pro Subscription", 2499.0, "monthly"),
     ("Enterprise Cloud Suite", 18500.0, "monthly"),
-    ("SaaS Starter Plan", 1499.0, "monthly"),
-    ("Growth Marketing Stack", 8999.0, "monthly"),
-    ("Developer API Tier", 2999.0, "monthly"),
-    ("Annual Analytics Pass", 45000.0, "yearly"),
-    ("E-commerce Booster", 6500.0, "monthly"),
-    ("Security & Compliance Addon", 12000.0, "monthly"),
+    ("SaaS Starter Plan", 999.0, "monthly"),
+    ("Growth Marketing Stack", 6999.0, "monthly"),
+    ("Developer API Tier", 3499.0, "monthly"),
+    ("Annual Analytics Pass", 48000.0, "yearly"),
+    ("E-commerce Booster", 8999.0, "monthly"),
+    ("Security & Compliance Addon", 12500.0, "monthly"),
+    ("Custom Enterprise License", 50000.0, "yearly"),
 ]
 
 PAYMENT_METHODS = ["credit_card", "debit_card", "upi", "netbanking", "mandate"]
+
+# Exact 4-Band Amount Distribution for realistic fintech data
+AMOUNT_BANDS = {
+    "band_a": [500.0, 999.0, 1499.0, 2499.0, 3499.0, 4999.0],       # ₹500–₹4,999
+    "band_b": [5499.0, 6999.0, 7500.0, 8499.0, 8999.0, 9999.0],     # ₹5,000–₹9,999
+    "band_c": [10500.0, 11999.0, 12500.0, 13499.0, 14500.0],         # ₹10,000–₹14,999
+    "band_d": [16500.0, 18500.0, 22000.0, 28500.0, 34000.0, 45000.0, 48000.0],  # ₹15,000–₹49,999
+    "upper_bound": [50000.0]                                          # ₹50,000 exactly
+}
+
+def generate_realistic_amount() -> float:
+    """Generates a realistic payment amount across the 4 standard fintech bands."""
+    band_choice = random.choices(
+        ["band_a", "band_b", "band_c", "band_d", "upper_bound"],
+        weights=[0.35, 0.30, 0.20, 0.13, 0.02]
+    )[0]
+    return float(random.choice(AMOUNT_BANDS[band_choice]))
 
 FAILURE_CATEGORIES = [
     ("insufficient_funds", "ERR_INSUFFICIENT_FUNDS", "Declined due to insufficient account balance."),
@@ -141,7 +159,7 @@ def seed_synthetic_data(db: Session, num_customers: int = 100, num_payments: int
     for c in customers:
         num_baseline = random.randint(1, 4)
         for b_idx in range(num_baseline):
-            base_amount = random.choice([1499.0, 2999.0, 4999.0, 8999.0, 12000.0, 18500.0])
+            base_amount = generate_realistic_amount()
             base_pm = random.choice(PAYMENT_METHODS)
             # Spread payment dates between customer signup and now
             days_ago = random.randint(5, 60)
@@ -164,7 +182,7 @@ def seed_synthetic_data(db: Session, num_customers: int = 100, num_payments: int
     # 3b. Generate targeted mix of Succeeded (~40%), Recovered (~35%), and Active Failed (~25%)
     for i in range(num_payments):
         c = random.choice(customers)
-        amount = random.choice([1499.0, 2999.0, 4999.0, 8999.0, 12000.0, 18500.0, 45000.0])
+        amount = generate_realistic_amount()
         pm = random.choice(PAYMENT_METHODS)
         created_date = now - timedelta(days=random.randint(0, 30), hours=random.randint(1, 23))
 

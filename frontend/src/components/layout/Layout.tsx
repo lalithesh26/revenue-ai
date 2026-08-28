@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Header } from './Header';
 import { Sidebar, ActiveTab } from './Sidebar';
 import { SearchItem, User } from '../../types';
@@ -34,6 +34,8 @@ export const Layout: React.FC<LayoutProps> = ({
   user,
   onLogout,
 }) => {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   const getTabTitles = (tab: ActiveTab) => {
     switch (tab) {
       case 'dashboard':
@@ -51,7 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({
       case 'agent-activity':
         return { title: 'Agent Activity', subtitle: 'Live execution feed of contextual AI decisions and deterministic actions.' };
       case 'guardrails':
-        return { title: 'Safety & Guardrails', subtitle: '6 deterministic policies ensuring 100% compliant and isolated recovery.' };
+        return { title: 'Safety & Guardrails', subtitle: '7 deterministic policies ensuring 100% compliant and isolated recovery.' };
       case 'audit-trail':
         return { title: 'Audit Trail', subtitle: 'Chronological database audit trail for financial governance and compliance.' };
       case 'settings':
@@ -65,19 +67,38 @@ export const Layout: React.FC<LayoutProps> = ({
 
   const { title, subtitle } = getTabTitles(activeTab);
 
+  const handleSelectTabAndCloseMobile = (tab: ActiveTab) => {
+    onSelectTab(tab);
+    setMobileSidebarOpen(false);
+  };
+
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-[#0F172A] overflow-hidden font-sans">
-      {/* Compact Sidebar */}
-      <Sidebar
-        activeTab={activeTab}
-        onSelectTab={onSelectTab}
-        openCasesCount={openCasesCount}
-        user={user}
-        onLogout={onLogout}
-      />
+    <div className="flex h-screen bg-[#F8FAFC] text-[#0F172A] overflow-hidden font-sans relative">
+      {/* Mobile Drawer Backdrop */}
+      {mobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden transition-opacity"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar with Desktop & Mobile Responsive Drawer */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out lg:relative lg:transform-none lg:z-auto
+        ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <Sidebar
+          activeTab={activeTab}
+          onSelectTab={handleSelectTabAndCloseMobile}
+          openCasesCount={openCasesCount}
+          user={user}
+          onLogout={onLogout}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+        />
+      </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden w-full">
         <Header
           title={title}
           subtitle={subtitle}
@@ -91,8 +112,9 @@ export const Layout: React.FC<LayoutProps> = ({
           user={user}
           onLogout={onLogout}
           onOpenSettings={() => onSelectTab('settings')}
+          onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
         />
-        <main className="flex-1 overflow-y-auto px-6 sm:px-8 py-6">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
           <div className="mx-auto max-w-[1600px] space-y-6">
             {children}
           </div>

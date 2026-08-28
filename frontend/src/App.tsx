@@ -9,6 +9,7 @@ import { PrimaryRecoveryCard } from './components/dashboard/PrimaryRecoveryCard'
 import { AIAgentStatusCard } from './components/dashboard/AIAgentStatusCard';
 import { AIInsightsCard } from './components/dashboard/AIInsightsCard';
 import { QuickActionsCard } from './components/dashboard/QuickActionsCard';
+import { DemoScenariosCard } from './components/dashboard/DemoScenariosCard';
 import { RecoveryTrendCard } from './components/dashboard/RecoveryTrendCard';
 import { RecoveryPerformanceDonut } from './components/dashboard/RecoveryPerformanceDonut';
 import { RecoveryHealthCard } from './components/dashboard/RecoveryHealthCard';
@@ -186,6 +187,12 @@ export const App: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* CONTROLLED AI DEMO SCENARIOS LAUNCHER */}
+          <DemoScenariosCard
+            onOpenCaseModal={(id) => setSelectedCaseId(id)}
+            onRefreshData={loadData}
+          />
 
           {/* ROW 2: Bottom Section (Quick Actions + Trend Chart / Performance Donut + Recent Activity) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

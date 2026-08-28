@@ -10,7 +10,8 @@ import {
   LogOut,
   Settings,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Menu
 } from 'lucide-react';
 import { SearchDropdown } from '../search/SearchDropdown';
 import { NotificationsDropdown } from '../notifications/NotificationsDropdown';
@@ -29,6 +30,7 @@ interface HeaderProps {
   user: User | null;
   onLogout: () => void;
   onOpenSettings: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onLogout,
   onOpenSettings,
+  onToggleMobileSidebar,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -78,15 +81,27 @@ export const Header: React.FC<HeaderProps> = ({
   const userEmail = user?.email || 'demo@revenueai.app';
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center justify-between bg-[#F8FAFC]/90 backdrop-blur-md px-6 sm:px-8 border-b border-[#ECEEF2] select-none font-sans">
-      {/* Title & Subtitle */}
-      <div className="flex flex-col">
-        <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0F172A] leading-tight flex items-center gap-2">
-          <span>{title}</span>
-        </h1>
-        <p className="text-xs font-normal text-[#64748B] mt-0.5 hidden sm:block">
-          {subtitle}
-        </p>
+    <header className="sticky top-0 z-30 flex h-20 items-center justify-between bg-[#F8FAFC]/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 border-b border-[#ECEEF2] select-none font-sans">
+      {/* Mobile Hamburger Button + Title & Subtitle */}
+      <div className="flex items-center gap-3">
+        {onToggleMobileSidebar && (
+          <button
+            onClick={onToggleMobileSidebar}
+            className="lg:hidden p-2 rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] hover:bg-[#F1F5F9] transition-colors cursor-pointer shadow-xs"
+            aria-label="Toggle navigation drawer"
+          >
+            <Menu className="h-4.5 w-4.5" />
+          </button>
+        )}
+
+        <div className="flex flex-col">
+          <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-[#0F172A] leading-tight flex items-center gap-2">
+            <span>{title}</span>
+          </h1>
+          <p className="text-xs font-normal text-[#64748B] mt-0.5 hidden sm:block">
+            {subtitle}
+          </p>
+        </div>
       </div>
 
       {/* Right Controls: Search + Actions + Notifications + User Menu */}

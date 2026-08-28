@@ -97,6 +97,8 @@ export interface AgentDecision {
   reasoning: string;
   confidence: number;
   priority: RecoveryPriority;
+  decision_source?: string;
+  model_used?: string;
   created_at: string;
 }
 

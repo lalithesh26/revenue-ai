@@ -141,41 +141,12 @@ export const SignInPage: React.FC<SignInPageProps> = ({ onLoginSuccess }) => {
     [onLoginSuccess]
   );
 
-  /* ── Sandbox Google mock: generates a fake JWT payload ── */
-  const handleSandboxGoogle = async () => {
-    setGoogleLoading(true);
-    setError(null);
-    try {
-      // Build a mock Google ID token (unsigned, sandbox only)
-      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-      const payload = btoa(
-        JSON.stringify({
-          sub: 'google_sandbox_' + Date.now(),
-          email: 'google.user@gmail.com',
-          name: 'Google User',
-          given_name: 'Google',
-          picture: 'https://lh3.googleusercontent.com/a/placeholder',
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        })
-      );
-      const fakeToken = `${header}.${payload}.sandbox_sig`;
-      const res = await api.googleSignIn(fakeToken, true);
-      setSuccess(`Welcome, ${res.user.name}! Signing you in…`);
-      setTimeout(() => onLoginSuccess(res.user), 600);
-    } catch (err: any) {
-      setError(err.message || 'Google sign-in failed. Please try again.');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   const handleRealGoogle = () => {
     const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
     if (GOOGLE_CLIENT_ID && window.google) {
       window.google.accounts.id.prompt();
     } else {
-      handleSandboxGoogle();
+      setError('Google Sign-In is not configured in this environment. Please use Email/Password sign-in below.');
     }
   };
 

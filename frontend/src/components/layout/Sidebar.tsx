@@ -39,6 +39,7 @@ interface SidebarProps {
   openCasesCount?: number;
   user: User | null;
   onLogout: () => void;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -46,27 +47,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   openCasesCount = 0,
   user,
-  onLogout
+  onLogout,
+  onCloseMobile
 }) => {
   const userName = user?.name || 'Alex Morgan';
   const userEmail = user?.email || 'demo@revenueai.app';
 
   return (
-    <aside className="w-64 shrink-0 bg-white border-r border-[#ECEEF2] flex flex-col justify-between p-4 pl-5 select-none h-full overflow-y-auto font-sans">
+    <aside className="w-64 shrink-0 bg-white border-r border-[#ECEEF2] flex flex-col justify-between p-4 pl-5 select-none h-full overflow-y-auto font-sans shadow-lg lg:shadow-none">
       <div className="space-y-6">
-        {/* RevenueAI Brand Header */}
-        <div className="flex items-center gap-3 px-1 pt-1">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6366F1] via-[#7C3AED] to-[#A855F7] shadow-md shadow-indigo-500/20 text-white">
-            <span className="font-extrabold text-lg tracking-tight">R</span>
+        {/* RevenueAI Brand Header with Mobile Close Button */}
+        <div className="flex items-center justify-between px-1 pt-1">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#6366F1] via-[#7C3AED] to-[#A855F7] shadow-md shadow-indigo-500/20 text-white">
+              <span className="font-extrabold text-lg tracking-tight">R</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-extrabold tracking-tight text-[#0F172A] leading-tight flex items-center gap-1">
+                RevenueAI
+              </span>
+              <span className="text-[10px] font-semibold text-[#8B5CF6] tracking-wider uppercase">
+                AI Revenue Recovery
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-extrabold tracking-tight text-[#0F172A] leading-tight flex items-center gap-1">
-              RevenueAI
-            </span>
-            <span className="text-[10px] font-semibold text-[#8B5CF6] tracking-wider uppercase">
-              AI Revenue Recovery
-            </span>
-          </div>
+
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden p-1.5 rounded-xl text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {/* Navigation Sections */}

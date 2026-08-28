@@ -165,7 +165,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
       case 'recovered': return <Badge variant="success" dot>RECOVERED</Badge>;
       case 'failed_unrecovered': return <Badge variant="danger" dot>UNRECOVERED</Badge>;
       case 'closed': return <Badge variant="neutral" dot>CLOSED</Badge>;
-      default: return <Badge variant="neutral">{status}</Badge>;
+      default: return <Badge variant="neutral">{status?.toUpperCase()}</Badge>;
     }
   };
 
@@ -178,94 +178,150 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
     { rule_name: "Policy 2: Maximum Retry Throttling", passed: (caseDetail?.retry_count ?? 0) < 3, message: "Automated retries capped at <= 3 attempts", severity: "BLOCKING" },
     { rule_name: "Policy 3: Idempotency & Duplicate Gate", passed: caseDetail?.status !== 'recovered', message: "Prevents double charging resolved payments", severity: "BLOCKING" },
     { rule_name: "Policy 4: Amount Integrity Lock", passed: true, message: "Amount locked to exact invoice amount", severity: "BLOCKING" },
-    { rule_name: "Policy 5: Stolen & Fraud Ineligibility", passed: !['stolen', 'fraud'].some(w => (caseDetail?.failure_reason || '').toLowerCase().includes(w)), message: "Blocks automated retries on security flags", severity: "BLOCKING" },
-    { rule_name: "Policy 6: Payment Method Expiry", passed: !['expired'].some(w => (caseDetail?.failure_reason || '').toLowerCase().includes(w)), message: "Card expired directs to payment link", severity: "BLOCKING" },
+    { rule_name: "Policy 5: Stolen & Fraud Ineligibility", passed: !['stolen', 'fraud'].some(w => (caseDetail?.payment?.failure_reason || caseDetail?.failure_reason || '').toLowerCase().includes(w)), message: "Blocks automated retries on security flags", severity: "BLOCKING" },
+    { rule_name: "Policy 6: Payment Method Expiry", passed: !['expired'].some(w => (caseDetail?.payment?.failure_reason || caseDetail?.failure_reason || '').toLowerCase().includes(w)), message: "Card expired directs to payment link", severity: "BLOCKING" },
     { rule_name: "Policy 7: Recovery Pressure Cadence", passed: true, message: "Contextual safety check to avoid over-contacting", severity: "WARNING" }
   ];
 
   const activeChecks = guardrailResults.length > 0 ? guardrailResults : defaultGuardrails;
   const latestDecision = caseDetail?.decisions && caseDetail.decisions.length > 0 ? caseDetail.decisions[0] : null;
+  const actualAmount = caseDetail?.revenue_at_risk || caseDetail?.payment?.amount || 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-6xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#ECEEF2] overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto font-sans">
+      <div className="relative w-full max-w-6xl max-h-[94vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-[#ECEEF2] overflow-hidden my-auto">
         
-        {/* MODAL HEADER */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#F1F5F9] bg-[#FAFBFD]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-white shadow-md shadow-[#6366F1]/20">
-              <RotateCcw className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-[#0F172A]">
-                  Recovery Case Details
-                </h2>
-                <span className="font-mono text-xs text-[#64748B] bg-[#F1F5F9] px-2 py-0.5 rounded-lg border border-[#E2E8F0]">
-                  {caseDetail?.id}
-                </span>
-                {getStatusBadge(caseDetail?.status)}
+        {/* ========================================================================= */}
+        {/* MODAL HEADER WITH MANDATORY TOP-VIEWPORT RECOVERY AMOUNT (PART 13 REQUIREMENT) */}
+        {/* ========================================================================= */}
+        <div className="px-6 py-4 border-b border-[#F1F5F9] bg-[#FAFBFD] space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-white shadow-md shadow-[#6366F1]/20">
+                <RotateCcw className="h-5 w-5" />
               </div>
-              <p className="text-xs text-[#64748B] mt-0.5">
-                Payment: <span className="font-mono text-[#0F172A]">{caseDetail?.payment_id}</span> · Detected: {caseDetail?.detected_at ? new Date(caseDetail.detected_at).toLocaleString() : 'N/A'}
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-extrabold text-[#0F172A] tracking-tight">
+                    Recovery Case Details
+                  </h2>
+                  <span className="font-mono text-xs text-[#64748B] bg-[#F1F5F9] px-2 py-0.5 rounded-lg border border-[#E2E8F0]">
+                    {caseDetail?.id}
+                  </span>
+                  {getStatusBadge(caseDetail?.status)}
+                </div>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Payment: <span className="font-mono font-semibold text-[#0F172A]">{caseDetail?.payment_id}</span> · Detected: {caseDetail?.detected_at ? new Date(caseDetail.detected_at).toLocaleString() : 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            {/* Right Header Navigation & Close Controls */}
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <div className="flex p-1 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
+                <button
+                  onClick={() => setActiveTab('workspace')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeTab === 'workspace'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#64748B] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Workspace
+                </button>
+                <button
+                  onClick={() => setActiveTab('audit')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeTab === 'audit'
+                      ? 'bg-white text-[#0F172A] shadow-xs'
+                      : 'text-[#64748B] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Audit Trail ({caseDetail?.audit_logs?.length || 0})
+                </button>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
-          {/* Right Action Header Buttons */}
-          <div className="flex items-center gap-2">
-            <div className="flex p-1 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
-              <button
-                onClick={() => setActiveTab('workspace')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === 'workspace'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-[#64748B] hover:text-[#0F172A]'
-                }`}
-              >
-                Recovery Workspace
-              </button>
-              <button
-                onClick={() => setActiveTab('audit')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === 'audit'
-                    ? 'bg-white text-[#0F172A] shadow-xs'
-                    : 'text-[#64748B] hover:text-[#0F172A]'
-                }`}
-              >
-                Audit Trail ({caseDetail?.audit_logs?.length || 0})
-              </button>
+          {/* TOP RECOVERY AMOUNT HERO BAR — ALWAYS VISIBLE IN FIRST VIEWPORT WITHOUT SCROLLING */}
+          <div className="rounded-2xl border border-[#ECEEF2] bg-gradient-to-r from-white via-[#F8FAFC] to-[#F5F3FF] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-4">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B]">
+                  RECOVERY AMOUNT
+                </span>
+                <div className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight font-sans flex items-baseline gap-1.5">
+                  <span>{formatCurrency(actualAmount)}</span>
+                  <span className="text-xs font-semibold text-[#64748B] font-mono">INR</span>
+                </div>
+              </div>
+
+              <div className="hidden md:flex flex-col border-l border-[#E2E8F0] pl-4 text-xs text-[#64748B] space-y-0.5">
+                <span>Customer: <strong className="text-[#0F172A]">{caseDetail?.customer?.name || 'Subscriber'}</strong></span>
+                <span>Method: <strong className="text-[#0F172A] uppercase">{caseDetail?.payment?.payment_method || caseDetail?.payment_method || 'CARD'}</strong></span>
+                <span className="truncate max-w-[240px]">Reason: <strong className="text-[#E11D48]">{caseDetail?.payment?.failure_reason || caseDetail?.failure_reason || 'Gateway Decline'}</strong></span>
+              </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/* Top Viewport Action Controls */}
+            <div className="flex items-center gap-2">
+              {caseDetail?.status !== 'recovered' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleRunAgent}
+                  loading={runningAgent}
+                  icon={<Bot className="h-4 w-4" />}
+                  className="rounded-xl px-4 py-2 font-bold shadow-md shadow-indigo-500/20"
+                >
+                  {runningAgent ? 'Running Agent...' : 'Run Recovery Agent'}
+                </Button>
+              )}
+
+              {caseDetail?.status !== 'recovered' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSimulateCustomerRecovery}
+                  loading={simulatingSettlement}
+                  icon={<Sparkles className="h-4 w-4 text-[#059669]" />}
+                  className="rounded-xl px-3.5 py-2 font-bold border-[#A7F3D0] text-[#059669] hover:bg-[#ECFDF5]"
+                >
+                  {simulatingSettlement ? 'Settling...' : 'Simulate Settlement'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* MODAL CONTENT BODY */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {loading ? (
             <div className="space-y-4 animate-pulse">
               <div className="h-10 bg-[#F1F5F9] rounded-2xl w-full"></div>
-              <div className="grid grid-cols-3 gap-6">
-                <div className="h-64 bg-[#F1F5F9] rounded-2xl"></div>
-                <div className="h-64 bg-[#F1F5F9] rounded-2xl"></div>
-                <div className="h-64 bg-[#F1F5F9] rounded-2xl"></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="h-48 bg-[#F1F5F9] rounded-2xl"></div>
+                <div className="h-48 bg-[#F1F5F9] rounded-2xl"></div>
+                <div className="h-48 bg-[#F1F5F9] rounded-2xl"></div>
+                <div className="h-48 bg-[#F1F5F9] rounded-2xl"></div>
               </div>
             </div>
           ) : !caseDetail ? (
             <div className="p-12 text-center text-[#64748B]">Case details could not be loaded.</div>
           ) : activeTab === 'audit' ? (
-            /* AUDIT TAB */
+            /* AUDIT TRAIL TAB */
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
                 <div>
                   <h3 className="text-sm font-bold text-[#0F172A]">Sealed Audit Log Timeline</h3>
-                  <p className="text-xs text-[#64748B]">Cryptographically verifiable trail of every decision, guardrail check, and execution event.</p>
+                  <p className="text-xs text-[#64748B]">Verifiable trail of every context gathering, risk evaluation, AI decision, guardrail check, and execution event.</p>
                 </div>
                 <Badge variant="info">{caseDetail.audit_logs?.length || 0} Events Logged</Badge>
               </div>
@@ -276,17 +332,17 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
             <>
               {/* STATUS NOTICES */}
               {isEscalated ? (
-                <div className="p-4 rounded-2xl border border-[#FECDD3] bg-[#FFF1F2] flex items-center justify-between shadow-sm">
+                <div className="p-3.5 rounded-2xl border border-[#FECDD3] bg-[#FFF1F2] flex items-center justify-between shadow-xs">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#E11D48] text-white">
                       <ShieldAlert className="h-4 w-4" />
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-[#E11D48]">
-                        Automated Recovery Scaled to Human Retention Operations
+                        Automated Recovery Scaled to Human Retention Operations (ESCALATED)
                       </h4>
                       <p className="text-[11px] text-[#64748B]">
-                        Elevated risk or retry limit reached. Automated retries halted to protect customer relationship.
+                        Elevated transaction risk or retry limit reached. Routed to senior retention specialist.
                       </p>
                     </div>
                   </div>
@@ -296,24 +352,24 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                       size="sm"
                       onClick={onNavigateNextCase}
                       icon={<ArrowRight className="h-3.5 w-3.5" />}
-                      className="rounded-xl px-4 font-bold shadow-sm"
+                      className="rounded-xl px-4 font-bold shadow-xs"
                     >
-                      Proceed to Next Case →
+                      Next Case →
                     </Button>
                   )}
                 </div>
               ) : isStopped ? (
-                <div className="p-4 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] flex items-center justify-between shadow-sm">
+                <div className="p-3.5 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] flex items-center justify-between shadow-xs">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#D97706] text-white">
                       <StopCircle className="h-4 w-4" />
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-[#D97706]">
-                        Automated Outreach Halted (Compliance Policy)
+                        Automated Outreach Halted by Deterministic Policy (BLOCKED)
                       </h4>
                       <p className="text-[11px] text-[#64748B]">
-                        Customer consent is revoked. In strict accordance with anti-spam compliance, automated messaging is halted.
+                        Subscriber consent is revoked. In compliance with safety policies, all outbound automated messaging is prohibited.
                       </p>
                     </div>
                   </div>
@@ -323,24 +379,24 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                       size="sm"
                       onClick={onNavigateNextCase}
                       icon={<ArrowRight className="h-3.5 w-3.5" />}
-                      className="rounded-xl px-4 font-bold shadow-sm"
+                      className="rounded-xl px-4 font-bold shadow-xs"
                     >
-                      Proceed to Next Case →
+                      Next Case →
                     </Button>
                   )}
                 </div>
               ) : isRecovered ? (
-                <div className="p-4 rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] flex items-center justify-between shadow-sm">
+                <div className="p-3.5 rounded-2xl border border-[#A7F3D0] bg-[#ECFDF5] flex items-center justify-between shadow-xs">
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#059669] text-white">
                       <CheckCircle2 className="h-4 w-4" />
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-[#059669]">
-                        Revenue Successfully Recovered ({formatCurrency(caseDetail.revenue_at_risk)})
+                        Revenue Successfully Recovered ({formatCurrency(actualAmount)})
                       </h4>
                       <p className="text-[11px] text-[#64748B]">
-                        Transaction captured and verified via payment gateway.
+                        Transaction captured and verified via payment provider.
                       </p>
                     </div>
                   </div>
@@ -350,83 +406,16 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                       size="sm"
                       onClick={onNavigateNextCase}
                       icon={<ArrowRight className="h-3.5 w-3.5" />}
-                      className="rounded-xl px-4 font-bold shadow-sm"
+                      className="rounded-xl px-4 font-bold shadow-xs"
                     >
-                      Proceed to Next Case →
+                      Next Case →
                     </Button>
                   )}
                 </div>
               ) : null}
 
-              {/* TOP RECOVERY AMOUNT HERO BANNER (HIGHEST PRIORITY) */}
-              <div className="rounded-3xl border border-[#ECEEF2] bg-gradient-to-r from-[#F8FAFC] via-white to-[#F5F3FF] p-6 shadow-xs relative overflow-hidden">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      <RotateCcw className="h-3.5 w-3.5 text-[#6366F1]" />
-                      <span>Recoverable Payment Amount</span>
-                    </div>
-                    <div className="text-3xl sm:text-4xl font-black text-[#0F172A] tracking-tight flex items-baseline gap-2 font-sans">
-                      <span>{formatCurrency(caseDetail.revenue_at_risk || caseDetail.payment?.amount || 0)}</span>
-                      <span className="text-xs font-semibold text-[#64748B] font-mono">INR</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#64748B] pt-0.5">
-                      <span>Invoice / Plan: <strong className="text-[#0F172A]">{caseDetail.subscription?.billing_cycle ? `${caseDetail.subscription.billing_cycle.toUpperCase()} Plan` : 'Standard Invoice'}</strong></span>
-                      <span>·</span>
-                      <span>Customer: <strong className="text-[#0F172A]">{caseDetail.customer?.name || 'Customer'}</strong></span>
-                      <span>·</span>
-                      <span>Method: <strong className="text-[#0F172A] uppercase">{caseDetail.payment?.payment_method || 'CARD'}</strong></span>
-                    </div>
-                  </div>
-
-                  {/* Right quick badges / actions */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-2xs space-y-0.5 min-w-[130px]">
-                      <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Failure Reason</div>
-                      <div className="text-xs font-bold text-[#E11D48] truncate max-w-[180px]" title={caseDetail.payment?.failure_reason || caseDetail.failure_reason || 'Decline'}>
-                        {caseDetail.payment?.failure_reason || caseDetail.failure_reason || 'Gateway Decline'}
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-2xl bg-white border border-[#E2E8F0] shadow-2xs space-y-0.5 min-w-[110px]">
-                      <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Priority</div>
-                      <div className="text-xs font-bold text-[#0F172A] uppercase flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${caseDetail.priority === 'critical' ? 'bg-[#E11D48]' : caseDetail.priority === 'high' ? 'bg-[#D97706]' : 'bg-[#6366F1]'}`}></span>
-                        <span>{caseDetail.priority || 'MEDIUM'}</span>
-                      </div>
-                    </div>
-
-                    {caseDetail.status !== 'recovered' && (
-                      <Button
-                        variant="primary"
-                        size="md"
-                        onClick={handleRunAgent}
-                        loading={runningAgent}
-                        icon={<Bot className="h-4 w-4" />}
-                        className="rounded-2xl px-5 font-bold shadow-md shadow-indigo-500/20"
-                      >
-                        {runningAgent ? 'Running AI Agent...' : 'Run Autonomous Agent'}
-                      </Button>
-                    )}
-
-                    {caseDetail.status !== 'recovered' && (
-                      <Button
-                        variant="outline"
-                        size="md"
-                        onClick={handleSimulateCustomerRecovery}
-                        loading={simulatingSettlement}
-                        icon={<Sparkles className="h-4 w-4 text-[#059669]" />}
-                        className="rounded-2xl px-4 font-bold border-[#A7F3D0] text-[#059669] hover:bg-[#ECFDF5]"
-                      >
-                        {simulatingSettlement ? 'Simulating...' : 'Simulate Settlement'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* 4 CORE DECISION CARDS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 {/* CARD 1: Customer Context */}
                 <Card className="p-5 border-[#ECEEF2] bg-white flex flex-col justify-between">
@@ -471,16 +460,11 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                           {caseDetail.customer?.consent_status ? 'Active Consent' : 'Revoked'}
                         </Badge>
                       </div>
-
-                      <div className="p-2.5 rounded-xl bg-[#FFFBEB] border border-[#FDE68A] text-[11px] text-[#92400E]">
-                        <span className="font-bold block">Decline Reason:</span>
-                        <span className="line-clamp-2">{caseDetail.payment?.failure_reason || 'Gateway Decline'}</span>
-                      </div>
                     </div>
                   </div>
 
                   <div className="pt-2.5 mt-2 border-t border-[#F1F5F9] flex items-center justify-between text-[10px] text-[#94A3B8]">
-                    <span>Method: {caseDetail.payment?.payment_method?.toUpperCase()}</span>
+                    <span>Method: {caseDetail.payment?.payment_method?.toUpperCase() || 'CARD'}</span>
                     <span>Verified Profile</span>
                   </div>
                 </Card>
@@ -525,7 +509,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
 
                         {latestDecision?.confidence && (
                           <div className="flex items-center justify-between text-xs pt-1">
-                            <span className="text-[#64748B]">Confidence:</span>
+                            <span className="text-[#64748B]">AI Confidence:</span>
                             <span className="font-mono font-bold text-[#059669]">
                               {(latestDecision.confidence * 100).toFixed(0)}%
                             </span>
@@ -538,7 +522,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                           Strategic Rationale
                         </span>
                         <p className="text-[11px] text-[#334155] leading-snug p-2.5 rounded-xl bg-[#F8FAFC] border border-[#ECEEF2] line-clamp-3">
-                          {latestDecision?.reasoning || "Synthesizing transaction risk, pressure cadence, failure reason, and customer LTV to choose optimal recovery action."}
+                          {latestDecision?.reasoning || "Synthesizing transaction risk, recovery pressure cadence, and customer profile to formulate strategy."}
                         </p>
                       </div>
                     </div>
@@ -554,7 +538,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                       icon={<Sparkles className="h-3.5 w-3.5" />}
                       className="w-full rounded-xl py-2 text-xs font-bold shadow-md cursor-pointer"
                     >
-                      🤖 Run AI Agent
+                      Run Autonomous Agent
                     </Button>
                     <p className="text-[9px] text-center text-[#94A3B8]">
                       Autonomous Cycle & Audit Sealed
@@ -570,7 +554,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                 executing={executingStrategy}
               />
 
-              {/* SAFETY BOUNDARY COMPLIANCE (7 GUARDRAIL POLICIES) */}
+              {/* SAFETY BOUNDARY COMPLIANCE (7 DETERMINISTIC GUARDRAIL POLICIES) */}
               <Card className="p-5 border-[#ECEEF2] bg-white">
                 <div className="flex items-center justify-between pb-3 border-b border-[#F1F5F9]">
                   <div className="flex items-center gap-2">
@@ -635,7 +619,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                       <span>Simulate Customer Payment Settlement</span>
                     </div>
                     <p className="text-[11px] text-[#475569]">
-                      Simulates customer paying through the recovery payment link or retrying payment successfully.
+                      Simulates customer completing payment through the recovery payment link or auto-retry capture.
                     </p>
                   </div>
                   <Button
@@ -646,7 +630,7 @@ export const RecoveryCaseDetailModal: React.FC<RecoveryCaseDetailModalProps> = (
                     icon={<Zap className="h-3.5 w-3.5" />}
                     className="rounded-xl font-bold px-4"
                   >
-                    Simulate Settlement (₹{caseDetail.revenue_at_risk})
+                    Simulate Settlement ({formatCurrency(actualAmount)})
                   </Button>
                 </div>
               )}

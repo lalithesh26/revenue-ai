@@ -11,6 +11,7 @@ from app.api.analytics import router as analytics_router
 from app.api.guardrails import router as guardrails_router
 from app.api.audit import router as audit_router
 from app.api.system import router as system_router
+from app.api.webhooks import router as webhooks_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -25,3 +26,4 @@ api_router.include_router(notifications_router)
 api_router.include_router(search_router)
 api_router.include_router(demo_router)
 api_router.include_router(system_router)
+api_router.include_router(webhooks_router)

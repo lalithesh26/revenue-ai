@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "revenueai-fintech-jwt-secret-key-2026-production-ready")
     
     # Auth & Demo User
-    DEMO_USER_EMAIL: str = os.getenv("DEMO_USER_EMAIL", "demo@revenueai.app")
-    DEMO_USER_PASSWORD: str = os.getenv("DEMO_USER_PASSWORD", "RevenueAI@2026")
+    DEMO_USER_EMAIL: str = os.getenv("DEMO_ADMIN_EMAIL", os.getenv("DEMO_USER_EMAIL", "demo@revenueai.app"))
+    DEMO_USER_PASSWORD: str = os.getenv("DEMO_ADMIN_PASSWORD", os.getenv("DEMO_USER_PASSWORD", "RevenueAI@2026"))
     DEMO_USER_NAME: str = os.getenv("DEMO_USER_NAME", "Alex Morgan")
     
     # Database Settings
@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     PAYMENT_PROVIDER: str = os.getenv("PAYMENT_PROVIDER", "mock")  # "mock" or "razorpay_test"
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
+    RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
     
     # Deployment & Server Config
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
