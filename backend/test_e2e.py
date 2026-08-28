@@ -2,19 +2,50 @@ import urllib.request
 import urllib.error
 import json
 import sys
+import time
+import threading
+from pathlib import Path
+
+# Ensure backend root is in sys.path
+backend_dir = Path(__file__).resolve().parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
+def ensure_server_running(port: int = 8000) -> str:
+    url = f"http://127.0.0.1:{port}"
+    try:
+        urllib.request.urlopen(f"{url}/health", timeout=1)
+        return url
+    except Exception:
+        pass
+
+    import uvicorn
+    def run_app():
+        uvicorn.run("app.main:app", host="127.0.0.1", port=port, log_level="warning")
+
+    th = threading.Thread(target=run_app, daemon=True)
+    th.start()
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"{url}/health", timeout=1)
+            return url
+        except Exception:
+            time.sleep(0.1)
+    return url
 
 def test_api():
     print("=== REVENUEAI COMPREHENSIVE END-TO-END VALIDATION ===")
+    base_url = ensure_server_running(8000)
     
     # 1. Health
-    h = json.loads(urllib.request.urlopen("http://127.0.0.1:8000/health").read().decode())
+    h = json.loads(urllib.request.urlopen(f"{base_url}/health").read().decode())
     print("1. [PASS] Health Check:", h["service"], "| Status:", h["status"])
     assert h["service"] == "RevenueAI", "Service name must be RevenueAI"
 
     # 2. Auth - Invalid Credentials
     try:
         req_bad = urllib.request.Request(
-            "http://127.0.0.1:8000/api/auth/login",
+            f"{base_url}/api/auth/login",
             data=json.dumps({"email": "wrong@revenueai.app", "password": "bad"}).encode(),
             headers={"Content-Type": "application/json"}
         )
@@ -25,7 +56,7 @@ def test_api():
 
     # 3. Auth - Valid Login
     req_good = urllib.request.Request(
-        "http://127.0.0.1:8000/api/auth/login",
+        f"{base_url}/api/auth/login",
         data=json.dumps({"email": "demo@revenueai.app", "password": "RevenueAI@2026"}).encode(),
         headers={"Content-Type": "application/json"}
     )
@@ -35,7 +66,7 @@ def test_api():
 
     # 4. Auth - Protected Route /api/auth/me
     req_me = urllib.request.Request(
-        "http://127.0.0.1:8000/api/auth/me",
+        f"{base_url}/api/auth/me",
         headers={"Authorization": f"Bearer {token}"}
     )
     me = json.loads(urllib.request.urlopen(req_me).read().decode())
@@ -43,7 +74,7 @@ def test_api():
 
     # 5. Notifications
     req_notif = urllib.request.Request(
-        "http://127.0.0.1:8000/api/notifications",
+        f"{base_url}/api/notifications",
         headers={"Authorization": f"Bearer {token}"}
     )
     notifs = json.loads(urllib.request.urlopen(req_notif).read().decode())
@@ -51,7 +82,7 @@ def test_api():
 
     # 6. Mark All Notifications Read
     req_read = urllib.request.Request(
-        "http://127.0.0.1:8000/api/notifications/read-all",
+        f"{base_url}/api/notifications/read-all",
         data=b"{}",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     )
@@ -60,7 +91,7 @@ def test_api():
 
     # 7. Universal Search
     req_search = urllib.request.Request(
-        "http://127.0.0.1:8000/api/search?q=a",
+        f"{base_url}/api/search?q=a",
         headers={"Authorization": f"Bearer {token}"}
     )
     srch = json.loads(urllib.request.urlopen(req_search).read().decode())
@@ -68,7 +99,7 @@ def test_api():
 
     # 8. Dashboard Summary
     req_sum = urllib.request.Request(
-        "http://127.0.0.1:8000/api/dashboard/summary",
+        f"{base_url}/api/dashboard/summary",
         headers={"Authorization": f"Bearer {token}"}
     )
     sum_data = json.loads(urllib.request.urlopen(req_sum).read().decode())
@@ -76,27 +107,28 @@ def test_api():
 
     # 9. Recovery Cases List
     req_cases = urllib.request.Request(
-        "http://127.0.0.1:8000/api/recovery-cases",
+        f"{base_url}/api/recovery-cases",
         headers={"Authorization": f"Bearer {token}"}
     )
     cases = json.loads(urllib.request.urlopen(req_cases).read().decode())
     open_case = next((c for c in cases if c["status"] in ["open", "in_recovery"]), cases[0] if cases else None)
+    if not open_case:
+        raise ValueError("No recovery cases available to test agent execution.")
 
-    # 10. AI Recovery Agent Execution (Groq REAL_LLM + 6 Guardrails)
+    # 10. AI Recovery Agent Execution
+    case_id = open_case["id"]
     req_agent = urllib.request.Request(
-        f"http://127.0.0.1:8000/api/recovery-cases/{open_case['id']}/run-agent",
+        f"{base_url}/api/recovery-cases/{case_id}/run-agent",
         data=b"{}",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     )
     agent_res = json.loads(urllib.request.urlopen(req_agent).read().decode())
-    # pyrefly: ignore [unsupported-operation]
-    print(f"10. [PASS] AI Agent Run on Case {open_case['id']}: Action = {agent_res['decision']['decision']} | Guardrail Passed = {agent_res['guardrail_passed']} | Stages = {len(agent_res['stages'])}")
+    print(f"10. [PASS] AI Agent Run on Case {case_id}: Action = {agent_res['decision']['decision']} | Guardrail Passed = {agent_res['guardrail_passed']} | Stages = {len(agent_res['stages'])}")
 
     # 11. Settlement Simulation
     req_settle = urllib.request.Request(
-        "http://127.0.0.1:8000/api/demo/simulate-recovery",
-        # pyrefly: ignore [unsupported-operation]
-        data=json.dumps({"recovery_case_id": open_case["id"], "payment_link_paid": True}).encode(),
+        f"{base_url}/api/demo/simulate-recovery",
+        data=json.dumps({"recovery_case_id": case_id, "payment_link_paid": True}).encode(),
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     )
     settle_res = json.loads(urllib.request.urlopen(req_settle).read().decode())
@@ -105,7 +137,7 @@ def test_api():
 
     # 12. Logout
     req_logout = urllib.request.Request(
-        "http://127.0.0.1:8000/api/auth/logout",
+        f"{base_url}/api/auth/logout",
         data=b"{}",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     )

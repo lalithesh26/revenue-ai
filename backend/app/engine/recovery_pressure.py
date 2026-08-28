@@ -9,7 +9,7 @@ All arithmetic is deterministic, explainable, and auditable.
 """
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 OUTREACH_ACTIONS = {"retry", "send_payment_link", "send_reminder"}
 
 
-def _utc(dt: Optional[datetime]) -> Optional[datetime]:
+def _utc(dt: Optional[Union[datetime, str]]) -> Optional[datetime]:
     """Ensure a datetime is timezone-aware (UTC)."""
     if dt is None:
         return None
     if isinstance(dt, str):
         try:
-            dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            dt_parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            return dt_parsed.replace(tzinfo=timezone.utc) if dt_parsed.tzinfo is None else dt_parsed
         except Exception:
             return None
     if dt.tzinfo is None:
@@ -146,10 +147,10 @@ class RecoveryPressureEngine:
         score += pts
 
         # Signal 5: Recency of last action
-        executed_times = [
-            _utc(_get(a, "executed_at", None))
+        executed_times: List[datetime] = [
+            t
             for a in actions
-            if _get(a, "executed_at", None) is not None
+            if (t := _utc(_get(a, "executed_at", None))) is not None
         ]
         if executed_times:
             latest_at = max(executed_times)

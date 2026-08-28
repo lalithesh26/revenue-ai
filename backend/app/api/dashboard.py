@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.payment import Payment
@@ -8,6 +7,7 @@ from app.models.recovery_case import RecoveryCase
 from app.models.agent_decision import AgentDecision
 from app.models.audit_log import AuditLog
 from app.schemas.dashboard import DashboardSummaryResponse
+from app.engine.recovery_pressure import RecoveryPressureEngine
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -60,8 +60,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     recent_audits = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(8).all()
 
     # 6. Recovery Fatigue breakdown across open cases
-    from app.engine.fatigue import FatigueEngine
-    fatigue_engine = FatigueEngine()
+    fatigue_engine = RecoveryPressureEngine()
     fatigue_counts = {"low": 0, "moderate": 0, "high": 0, "critical": 0}
     for c in open_cases:
         if c.customer:

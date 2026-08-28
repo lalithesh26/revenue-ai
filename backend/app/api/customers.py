@@ -76,7 +76,6 @@ def get_customer(customer_id: str, db: Session = Depends(get_db)):
         "email": str(c.email),
         "phone": str(c.phone) if c.phone else None,
         "consent_status": bool(c.consent_status),
-        # pyrefly: ignore [bad-argument-type]
         "risk_score": float(c.risk_score),
         "created_at": c.created_at,
         "payments_count": len(payments),

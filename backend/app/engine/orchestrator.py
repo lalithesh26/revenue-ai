@@ -84,7 +84,13 @@ class RecoveryOrchestrator:
             raise ValueError(f"Recovery case {case_id} not found.")
 
         payment = db.query(Payment).filter(Payment.id == case.payment_id).first()
+        if not payment:
+            raise ValueError(f"Payment {case.payment_id} not found for recovery case {case_id}.")
+
         customer = db.query(Customer).filter(Customer.id == case.customer_id).first()
+        if not customer:
+            raise ValueError(f"Customer {case.customer_id} not found for recovery case {case_id}.")
+
         subscription = db.query(Subscription).filter(Subscription.customer_id == customer.id).first()
 
         # Audit 1: agent_started
@@ -617,7 +623,13 @@ class RecoveryOrchestrator:
             raise ValueError(f"Recovery case {case_id} not found.")
 
         payment = db.query(Payment).filter(Payment.id == case.payment_id).first()
+        if not payment:
+            raise ValueError(f"Payment {case.payment_id} not found for recovery case {case_id}.")
+
         customer = db.query(Customer).filter(Customer.id == case.customer_id).first()
+        if not customer:
+            raise ValueError(f"Customer {case.customer_id} not found for recovery case {case_id}.")
+
         subscription = db.query(Subscription).filter(Subscription.customer_id == customer.id).first()
         
         past_payments = self.get_customer_past_payments_summary(db, customer.id, exclude_payment_id=payment.id)
@@ -736,7 +748,12 @@ class RecoveryOrchestrator:
             raise ValueError(f"Recovery case {case_id} not found.")
 
         payment = db.query(Payment).filter(Payment.id == case.payment_id).first()
+        if not payment:
+            raise ValueError(f"Payment {case.payment_id} not found for recovery case {case_id}.")
+
         customer = db.query(Customer).filter(Customer.id == case.customer_id).first()
+        if not customer:
+            raise ValueError(f"Customer {case.customer_id} not found for recovery case {case_id}.")
         
         target_action = action_type or case.assigned_action or "retry"
 
@@ -892,6 +909,8 @@ class RecoveryOrchestrator:
             raise ValueError(f"Recovery case {case_id} not found.")
 
         payment = db.query(Payment).filter(Payment.id == case.payment_id).first()
+        if not payment:
+            raise ValueError(f"Payment {case.payment_id} not found for recovery case {case_id}.")
         if payment.status in ["succeeded", "recovered"]:
             return {
                 "recovery_case_id": case.id,
