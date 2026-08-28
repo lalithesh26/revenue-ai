@@ -378,7 +378,25 @@ export interface DemoScenario {
   id: string;
   title: string;
   category: string;
-  expected_action: string;
-  expected_guardrail: string;
+  expected_action?: string;
+  expected_guardrail?: string;
   description: string;
 }
+
+export interface RecoveryTrendPoint {
+  period: string;
+  label: string;
+  recovered: number;
+  at_risk: number;
+  count_recovered?: number;
+  count_at_risk?: number;
+}
+
+export interface RecoveryTrendResponse {
+  range: 'month' | 'quarter' | 'year';
+  period_label: string;
+  points: RecoveryTrendPoint[];
+  total_recovered: number;
+  total_at_risk: number;
+}
+

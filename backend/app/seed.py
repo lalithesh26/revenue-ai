@@ -184,7 +184,15 @@ def seed_synthetic_data(db: Session, num_customers: int = 100, num_payments: int
         c = random.choice(customers)
         amount = generate_realistic_amount()
         pm = random.choice(PAYMENT_METHODS)
-        created_date = now - timedelta(days=random.randint(0, 30), hours=random.randint(1, 23))
+        
+        # Distribute across Jan to Aug 2026: ~45% in current month August, ~55% across Jan-July
+        if random.random() < 0.45:
+            days_ago = random.randint(0, min(27, max(1, now.day - 1)))
+        else:
+            days_ago = random.randint(28, 235)
+            
+        c_created = c.created_at.replace(tzinfo=timezone.utc) if c.created_at.tzinfo is None else c.created_at
+        created_date = max(c_created, now - timedelta(days=days_ago, hours=random.randint(1, 23)))
 
         status_roll = random.random()
         if status_roll < 0.55:

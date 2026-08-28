@@ -19,3 +19,18 @@ class DashboardSummaryResponse(BaseModel):
     recent_audit_logs: List[AuditLogResponse]
     recovery_fatigue_breakdown: Optional[Dict[str, int]] = None
 
+class RecoveryTrendPoint(BaseModel):
+    period: str
+    label: str
+    recovered: float
+    at_risk: float
+    count_recovered: int = 0
+    count_at_risk: int = 0
+
+class RecoveryTrendResponse(BaseModel):
+    range: str
+    period_label: str
+    points: List[RecoveryTrendPoint]
+    total_recovered: float
+    total_at_risk: float
+

@@ -251,6 +251,13 @@ export const api = {
     return handleResponse<AnalyticsOverview>(res);
   },
 
+  async getRecoveryTrend(range: 'month' | 'quarter' | 'year' = 'month'): Promise<import('../types').RecoveryTrendResponse> {
+    const res = await fetch(`${API_BASE}/analytics/recovery-trend?range=${range}`, {
+      headers: getHeaders()
+    });
+    return handleResponse<import('../types').RecoveryTrendResponse>(res);
+  },
+
   // Guardrails Overview
   async getGuardrails(): Promise<GuardrailsOverviewResponse> {
     const res = await fetch(`${API_BASE}/guardrails`, {

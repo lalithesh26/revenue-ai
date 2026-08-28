@@ -264,16 +264,20 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ summary, loading, 
       </div>
 
       {/* Row 3: Charts (Trend Card + Donut Card) */}
-      {summary && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7">
-            <RecoveryTrendCard summary={summary} />
-          </div>
-          <div className="lg:col-span-5">
-            <RecoveryPerformanceDonut summary={summary} />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7">
+          <RecoveryTrendCard summary={summary} />
         </div>
-      )}
+        <div className="lg:col-span-5">
+          {summary ? (
+            <RecoveryPerformanceDonut summary={summary} />
+          ) : (
+            <Card className="p-6 bg-white border-[#ECEEF2] flex items-center justify-center h-full min-h-[250px]">
+              <span className="text-xs text-[#64748B]">Loading performance breakdown...</span>
+            </Card>
+          )}
+        </div>
+      </div>
 
       {/* Row 4: Strategy Execution & Failure Causes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

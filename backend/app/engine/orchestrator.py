@@ -478,12 +478,14 @@ class RecoveryOrchestrator:
         case.status = "in_recovery"
 
         if target_action == "retry":
+            now_utc = datetime.now(timezone.utc)
             case.retry_count += 1
             provider_resp = self.payment_provider.retry_payment(payment.id, payment.payment_method)
             recovered_amount = payment.amount
             payment.status = "recovered"
+            payment.updated_at = now_utc
             case.status = "recovered"
-            case.resolved_at = datetime.now(timezone.utc)
+            case.resolved_at = now_utc
             result_message = f"Payment successfully retried & captured via {self.payment_provider.provider_name.upper()} (Routing: Secondary)."
 
         elif target_action == "send_payment_link":
@@ -799,12 +801,14 @@ class RecoveryOrchestrator:
         action_status = "completed"
 
         if target_action == "retry":
+            now_utc = datetime.now(timezone.utc)
             case.retry_count += 1
             provider_resp = self.payment_provider.retry_payment(payment.id, payment.payment_method)
             recovered_amount = payment.amount
             payment.status = "recovered"
+            payment.updated_at = now_utc
             case.status = "recovered"
-            case.resolved_at = datetime.now(timezone.utc)
+            case.resolved_at = now_utc
             result_message = f"Payment successfully retried & captured via {self.payment_provider.provider_name.upper()}."
 
         elif target_action == "send_payment_link":
@@ -897,9 +901,11 @@ class RecoveryOrchestrator:
                 "recovered_amount": payment.amount
             }
 
+        now_utc = datetime.now(timezone.utc)
         payment.status = "recovered"
+        payment.updated_at = now_utc
         case.status = "recovered"
-        case.resolved_at = datetime.now(timezone.utc)
+        case.resolved_at = now_utc
         
         action = RecoveryAction(
             recovery_case_id=case.id,

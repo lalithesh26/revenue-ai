@@ -1,6 +1,9 @@
+import calendar
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models.customer import Customer
 from app.models.payment import Payment
@@ -8,11 +11,164 @@ from app.models.recovery_case import RecoveryCase
 from app.models.agent_decision import AgentDecision
 from app.models.recovery_action import RecoveryAction
 from app.models.audit_log import AuditLog
+from app.schemas.dashboard import RecoveryTrendResponse, RecoveryTrendPoint
 from app.engine.recovery_pressure import RecoveryPressureEngine
 from app.engine.transaction_risk import TransactionRiskEngine
 from app.engine.orchestrator import orchestrator
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+# Standard India Standard Time (IST) offset: UTC+5:30
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+@router.get("/recovery-trend", response_model=RecoveryTrendResponse)
+def get_recovery_trend(
+    time_range: str = Query("month", alias="range", pattern="^(month|quarter|year)$"),
+    db: Session = Depends(get_db)
+) -> RecoveryTrendResponse:
+    """
+    Returns real, SQL/database-aggregated recovery trend time-series:
+    - range=month: weekly breakdowns for current calendar month in IST
+    - range=quarter: bi-weekly/monthly breakdowns for current calendar quarter in IST
+    - range=year: monthly breakdowns from Jan to current month of current year in IST
+    """
+    now_utc = datetime.now(timezone.utc)
+    now_ist = now_utc.astimezone(IST)
+    current_year = now_ist.year
+    current_month = now_ist.month
+
+    points: List[RecoveryTrendPoint] = []
+    month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    def to_utc_window(ist_start: datetime, ist_end: datetime):
+        return ist_start.astimezone(timezone.utc), ist_end.astimezone(timezone.utc)
+
+    if time_range == "year":
+        period_label = f"{current_year} (Year to Date)"
+        for m in range(1, current_month + 1):
+            last_day_m = calendar.monthrange(current_year, m)[1]
+            ist_start = datetime(current_year, m, 1, 0, 0, 0, tzinfo=IST)
+            ist_end = datetime(current_year, m, last_day_m, 23, 59, 59, 999999, tzinfo=IST)
+            start_utc, end_utc = to_utc_window(ist_start, ist_end)
+
+            rec_payments = db.query(Payment).filter(
+                Payment.status == "recovered",
+                func.coalesce(Payment.updated_at, Payment.created_at) >= start_utc,
+                func.coalesce(Payment.updated_at, Payment.created_at) <= end_utc
+            ).all()
+
+            failed_payments = db.query(Payment).filter(
+                Payment.status == "failed",
+                Payment.created_at >= start_utc,
+                Payment.created_at <= end_utc
+            ).all()
+
+            points.append(RecoveryTrendPoint(
+                period=f"{current_year}-{m:02d}",
+                label=month_names[m - 1],
+                recovered=round(sum(p.amount for p in rec_payments), 2),
+                at_risk=round(sum(p.amount for p in failed_payments), 2),
+                count_recovered=len(rec_payments),
+                count_at_risk=len(failed_payments)
+            ))
+
+    elif time_range == "quarter":
+        quarter_num = (current_month - 1) // 3 + 1
+        period_label = f"Q{quarter_num} {current_year}"
+        start_m = (quarter_num - 1) * 3 + 1
+        end_m = start_m + 2
+
+        for m in range(start_m, end_m + 1):
+            m_name = month_names[m - 1]
+            last_day = calendar.monthrange(current_year, m)[1]
+
+            # Part 1: Days 1-15
+            p1_ist_start = datetime(current_year, m, 1, 0, 0, 0, tzinfo=IST)
+            p1_ist_end = datetime(current_year, m, 15, 23, 59, 59, 999999, tzinfo=IST)
+            p1_start_utc, p1_end_utc = to_utc_window(p1_ist_start, p1_ist_end)
+
+            # Part 2: Days 16-last_day
+            p2_ist_start = datetime(current_year, m, 16, 0, 0, 0, tzinfo=IST)
+            p2_ist_end = datetime(current_year, m, last_day, 23, 59, 59, 999999, tzinfo=IST)
+            p2_start_utc, p2_end_utc = to_utc_window(p2_ist_start, p2_ist_end)
+
+            for s_utc, e_utc, p_label, day_code in [
+                (p1_start_utc, p1_end_utc, f"{m_name} 1–15", 1),
+                (p2_start_utc, p2_end_utc, f"{m_name} 16–{last_day}", 16)
+            ]:
+                rec_payments = db.query(Payment).filter(
+                    Payment.status == "recovered",
+                    func.coalesce(Payment.updated_at, Payment.created_at) >= s_utc,
+                    func.coalesce(Payment.updated_at, Payment.created_at) <= e_utc
+                ).all()
+
+                failed_payments = db.query(Payment).filter(
+                    Payment.status == "failed",
+                    Payment.created_at >= s_utc,
+                    Payment.created_at <= e_utc
+                ).all()
+
+                points.append(RecoveryTrendPoint(
+                    period=f"{current_year}-{m:02d}-{day_code:02d}",
+                    label=p_label,
+                    recovered=round(sum(p.amount for p in rec_payments), 2),
+                    at_risk=round(sum(p.amount for p in failed_payments), 2),
+                    count_recovered=len(rec_payments),
+                    count_at_risk=len(failed_payments)
+                ))
+
+    else:  # "month"
+        period_label = now_ist.strftime("%B %Y")
+        m = current_month
+        m_name = month_names[m - 1]
+        last_day = calendar.monthrange(current_year, m)[1]
+
+        intervals = [
+            (1, 7, f"{m_name} 1–7"),
+            (8, 14, f"{m_name} 8–14"),
+            (15, 21, f"{m_name} 15–21"),
+            (22, 28, f"{m_name} 22–28"),
+            (29, last_day, f"{m_name} 29–{last_day}")
+        ]
+
+        for d_start, d_end, i_label in intervals:
+            ist_s = datetime(current_year, m, d_start, 0, 0, 0, tzinfo=IST)
+            ist_e = datetime(current_year, m, d_end, 23, 59, 59, 999999, tzinfo=IST)
+            s_utc, e_utc = to_utc_window(ist_s, ist_e)
+
+            rec_payments = db.query(Payment).filter(
+                Payment.status == "recovered",
+                func.coalesce(Payment.updated_at, Payment.created_at) >= s_utc,
+                func.coalesce(Payment.updated_at, Payment.created_at) <= e_utc
+            ).all()
+
+            failed_payments = db.query(Payment).filter(
+                Payment.status == "failed",
+                Payment.created_at >= s_utc,
+                Payment.created_at <= e_utc
+            ).all()
+
+            points.append(RecoveryTrendPoint(
+                period=f"{current_year}-{m:02d}-{d_start:02d}",
+                label=i_label,
+                recovered=round(sum(p.amount for p in rec_payments), 2),
+                at_risk=round(sum(p.amount for p in failed_payments), 2),
+                count_recovered=len(rec_payments),
+                count_at_risk=len(failed_payments)
+            ))
+
+    total_rec = sum(p.recovered for p in points)
+    total_risk = sum(p.at_risk for p in points)
+
+    return RecoveryTrendResponse(
+        range=time_range,
+        period_label=period_label,
+        points=points,
+        total_recovered=round(total_rec, 2),
+        total_at_risk=round(total_risk, 2)
+    )
+
 
 
 @router.get("")
